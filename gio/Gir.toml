@@ -75,6 +75,7 @@ generate = [
     "Gio.FileQueryInfoFlags",
     "Gio.FileType",
     "Gio.FilterInputStream",
+    "Gio.Initable",
     "Gio.IOErrorEnum",
     "Gio.IOStreamSpliceFlags",
     "Gio.LoadableIcon",
