@@ -101,3 +101,78 @@ unsafe extern "C" fn socket_control_message_get_size<T: SocketControlMessageImpl
 
     imp.size()
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prelude::*;
+
+    mod imp {
+        use super::*;
+
+        pub struct TestSocketControlMessage;
+
+        impl TestSocketControlMessage {}
+        impl ObjectImpl for TestSocketControlMessage { }
+
+        #[glib::object_subclass]
+        impl ObjectSubclass for TestSocketControlMessage {
+            const NAME: &'static str = "TestSocketControlMessage";
+            const ABSTRACT: bool = false;
+            type Type = super::TestSocketControlMessage;
+            type ParentType = SocketControlMessage;
+
+            fn new() -> Self {
+                Self
+            }
+        }
+
+        impl SocketControlMessageImpl for TestSocketControlMessage {
+            fn level(&self) -> i32 {
+                1
+            }
+
+            fn msg_type(&self) -> i32 {
+                2
+            }
+
+            fn size(&self) -> usize {
+                std::mem::size_of::<u64>()
+            }
+        }
+
+        impl SocketControlMessageExtManual for TestSocketControlMessage {
+            fn serialize(&self, data: &mut [u8]) {
+                data.clone_from_slice(&0u64.to_ne_bytes());
+            }
+        }
+    }
+
+    glib::wrapper! {
+        pub struct TestSocketControlMessage(ObjectSubclass<imp::TestSocketControlMessage>)
+            @extends SocketControlMessage;
+    }
+
+    impl TestSocketControlMessage {
+        pub fn new() -> Self {
+            let obj: Self = glib::Object::new();
+            obj
+        }
+    }
+
+    #[test]
+    fn test_socket_control_message_subclassing() {
+        let stream = glib::Object::new::<TestSocketControlMessage>();
+
+        assert_eq!(stream.level(), 1);
+        assert_eq!(stream.msg_type(), 2);
+        assert_eq!(stream.size(), std::mem::size_of::<u64>());
+
+        let through_abstract: &dyn SocketControlMessageExt = &stream;
+
+        assert_eq!(through_abstract.level(), 1);
+        assert_eq!(through_abstract.msg_type(), 2);
+        assert_eq!(through_abstract.size(), std::mem::size_of::<u64>());
+    }
+}
