@@ -923,11 +923,16 @@ mod tests {
         use super::Socket;
         use crate::{prelude::*, Cancellable, UnixFDMessage};
 
+        #[cfg(linux)]
+        const SOCK_CLOEXEC: libc::c_int = libc::SOCK_CLOEXEC;
+        #[cfg(not(linux))]
+        const SOCK_CLOEXEC: libc::c_int = 0;
+
         let mut fds = [0 as libc::c_int; 2];
         let (out_sock, in_sock) = unsafe {
             let ret = libc::socketpair(
                 libc::AF_UNIX,
-                libc::SOCK_STREAM | libc::SOCK_CLOEXEC,
+                libc::SOCK_STREAM | SOCK_CLOEXEC,
                 0,
                 fds.as_mut_ptr(),
             );
