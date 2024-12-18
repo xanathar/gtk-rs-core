@@ -67,6 +67,54 @@ fn gen_impl_from_value(name: &Ident, crate_ident: &TokenStream) -> TokenStream {
     }
 }
 
+fn gen_impl_from_value_ref(name: &Ident, crate_ident: &TokenStream) -> TokenStream {
+    let refcounted_type_prefix = refcounted_type_prefix(name, crate_ident);
+
+    quote! {
+        unsafe impl<'a> #crate_ident::value::FromValue<'a> for &'a #name {
+            type Checker = #crate_ident::value::GenericValueTypeChecker<Self>;
+
+            #[inline]
+            unsafe fn from_value(value: &'a #crate_ident::Value) -> Self {
+                let value = &*(value as *const #crate_ident::Value as *const #crate_ident::gobject_ffi::GValue);
+
+                let ptr = &*(&value.data[0].v_pointer as *const #crate_ident::ffi::gpointer);
+
+                debug_assert_eq!(
+                    std::mem::size_of::<Self>(),
+                    std::mem::size_of::<#crate_ident::ffi::gpointer>()
+                );
+                debug_assert!(!ptr.is_null());
+                &*(ptr as *const *mut std::ffi::c_void as *const *mut #refcounted_type_prefix::InnerType as *const Self)
+            }
+        }
+    }
+}
+
+fn gen_impl_from_value_optional_ref(name: &Ident, crate_ident: &TokenStream) -> TokenStream {
+    let refcounted_type_prefix = refcounted_type_prefix(name, crate_ident);
+
+    quote! {
+        unsafe impl<'a> #crate_ident::value::FromValue<'a> for &'a #name {
+            type Checker = #crate_ident::value::GenericValueTypeOrNoneChecker<Self>;
+
+            #[inline]
+            unsafe fn from_value(value: &'a #crate_ident::Value) -> Self {
+                let value = &*(value as *const #crate_ident::Value as *const #crate_ident::gobject_ffi::GValue);
+
+                let ptr = &*(&value.data[0].v_pointer as *const #crate_ident::ffi::gpointer);
+
+                debug_assert_eq!(
+                    std::mem::size_of::<Self>(),
+                    std::mem::size_of::<#crate_ident::ffi::gpointer>()
+                );
+                debug_assert!(!ptr.is_null());
+                &*(ptr as *const *mut std::ffi::c_void as *const *mut #refcounted_type_prefix::InnerType as *const Self)
+            }
+        }
+    }
+}
+
 fn refcounted_type(input: &syn::DeriveInput) -> Option<&syn::TypePath> {
     let fields = match &input.data {
         syn::Data::Struct(s) => &s.fields,
@@ -144,6 +192,12 @@ pub fn impl_shared_boxed(input: &syn::DeriveInput) -> syn::Result<proc_macro2::T
         quote! {}
     };
 
+    let impl_from_value_ref = if nullable {
+        gen_impl_from_value_ref(name, &crate_ident)
+    } else {
+        gen_impl_from_value_optional_ref(name, &crate_ident)
+    };
+
     Ok(quote! {
         impl #crate_ident::subclass::shared::SharedType for #name {
             const NAME: &'static ::core::primitive::str = #gtype_name;
@@ -213,6 +267,8 @@ pub fn impl_shared_boxed(input: &syn::DeriveInput) -> syn::Result<proc_macro2::T
         #impl_to_value_optional
 
         #impl_from_value
+
+        #impl_from_value_ref
 
         impl #crate_ident::translate::GlibPtrDefault for #name {
             type GlibType = *mut #refcounted_type_prefix::InnerType;
